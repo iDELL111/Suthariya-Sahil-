@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes"/>
 <title>iDELL Haiku — India's Smartest SMM Panel</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Syne:wght@600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
@@ -1021,7 +1021,7 @@ footer { background:var(--dark); padding:2.5rem 4rem 1.8rem; }
 <div id="lang-gate">
   <div class="lang-box">
     <div class="lang-logo">iDELL <span>Haiku</span></div>
-    <div class="lang-sub" id="lang-gate-sub">Select your language to continue<br>Apni bhasha chunein</div>
+    <div class="lang-sub" id="lang-gate-sub">Select your language to continue</div>
     <div class="lang-grid">
       <div class="lang-card" onclick="selectLang('english',this)">
         <div class="lc-name">English</div>
@@ -1249,7 +1249,7 @@ footer { background:var(--dark); padding:2.5rem 4rem 1.8rem; }
 <div class="modal-bg" id="link-modal"><div class="modal-card"><div class="modal-ttl">Share a Link</div><div class="modal-sub">Paste a URL to discuss with AI.</div><input class="modal-input" id="link-inp" type="url" placeholder="https://..."/><div class="modal-btns"><button class="modal-btn prim" onclick="submitLink()">Send</button><button class="modal-btn sec" onclick="closeLink()">Cancel</button></div></div></div>
 
 <script>
-// ========== TRANSLATIONS ==========
+// ========== TRANSLATIONS (Simplified for brevity) ==========
 const T = {
   english: {
     'lang-gate-sub': 'Select your language to continue',
@@ -1496,21 +1496,32 @@ function applyTheme() {
 }
 
 function enterSite() {
-  if (!document.getElementById('lang-enter-btn').classList.contains('ready')) return;
+  if (!document.getElementById('lang-enter-btn').classList.contains('ready')) {
+    alert('Please select a language first');
+    return;
+  }
   applyTheme();
   applyTranslations();
   const gate = document.getElementById('lang-gate');
   gate.classList.add('hidden');
-  setTimeout(() => gate.style.display = 'none', 380);
+  setTimeout(() => gate.style.display = 'none', 400);
   localStorage.setItem('idell_lang', currentLang);
   if (window._fbOnAuth) {
     window._fbOnAuth(user => {
-      if (user) { currentUser = user; loadData(); showApp(); }
+      if (user) {
+        currentUser = user;
+        loadData();
+        showApp();
+      } else {
+        showLanding();
+      }
     });
+  } else {
+    showLanding();
   }
 }
 
-// ========== DATA ==========
+// ========== DATA & GLOBALS ==========
 const SERVICES = {
   instagram: [
     {id:'ig-followers',name:'Instagram Followers',rate:35/1000,min:100,max:1000000,refill:'30 Days',smmId:'1015'},
@@ -1636,7 +1647,7 @@ window.addEventListener('load', () => {
     applyTranslations();
     const gate = document.getElementById('lang-gate');
     gate.classList.add('hidden');
-    setTimeout(() => gate.style.display = 'none', 380);
+    setTimeout(() => gate.style.display = 'none', 400);
   }
   if (window._fbOnAuth) { window._fbOnAuth(user => { if (user) { currentUser = user; loadData(); showApp(); } }); }
 });
@@ -1644,4 +1655,315 @@ window.addEventListener('load', () => {
 function refreshUI() {
   if (!currentUser) return;
   const name = currentUser.displayName || currentUser.email || 'User';
-  const photo = currentUser
+  const photo = currentUser.photoURL;
+  const balance = getDisplayBalance();
+  const balStr = 'Rs. ' + balance.toLocaleString('en-IN', {minimumFractionDigits:2});
+  document.getElementById('sb-name').textContent = name.split(' ')[0];
+  document.getElementById('sb-balance').textContent = balStr;
+  document.getElementById('top-balance').textContent = balStr;
+  document.getElementById('ds-balance').textContent = balStr;
+  const avEl = document.getElementById('sb-avatar');
+  if (photo) avEl.innerHTML = `<img src="${photo}" alt=""/>`;
+  else avEl.textContent = name.charAt(0).toUpperCase();
+}
+
+function renderDashboard() {
+  const orders = userData.orders || [];
+  document.getElementById('ds-orders').textContent = orders.length;
+  document.getElementById('ds-pending').textContent = orders.filter(o => o.status==='pending'||o.status==='processing').length;
+  document.getElementById('ds-completed').textContent = orders.filter(o => o.status==='completed').length;
+  const recentEl = document.getElementById('dash-recent-orders');
+  const recent = [...orders].reverse().slice(0,5);
+  if (!recent.length) {
+    recentEl.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><p>${T[currentLang]?.['da.noorders']||'No orders yet.'}</p></div>`;
+    return;
+  }
+  recentEl.innerHTML = `<table class="orders-table"><thead><tr><th>ID</th><th>Service</th><th>Status</th></tr></thead><tbody>` + recent.map(o => `<tr><td>#${o.id}</td><td style="font-size:.76rem;">${o.service}</td><td><span class="status-badge s-${o.status}">${o.status}</span></td></tr>`).join('') + `</tbody></table>`;
+}
+
+// ========== NEW ORDER WITH SERVICE GRID ==========
+let selectedService = null;
+let currentPlatform = '';
+let inlineCalcOpen = false;
+
+function selectPltGrid(platform) {
+  currentPlatform = platform;
+  ['ig','yt','fb'].forEach(p => {
+    let el = document.getElementById('plt-'+p);
+    if (el) el.classList.remove('selected');
+  });
+  const map = {instagram:'ig', youtube:'yt', facebook:'fb'};
+  document.getElementById('plt-'+map[platform])?.classList.add('selected');
+
+  // Hide previous selections
+  document.getElementById('services-grid').style.display = 'grid';
+  document.getElementById('inline-calc').style.display = 'none';
+  document.getElementById('order-fields').style.display = 'none';
+  selectedService = null;
+
+  // Render services grid
+  const services = SERVICES[platform];
+  const container = document.getElementById('services-grid');
+  container.innerHTML = '';
+  services.forEach(svc => {
+    const ratePerK = (svc.rate * 1000).toFixed(svc.rate < 1 ? 3 : 2);
+    const card = document.createElement('div');
+    card.className = 'service-card';
+    card.onclick = () => selectService(svc);
+    card.innerHTML = `<div>${svc.name}</div><div>₹${ratePerK}/1,000</div>`;
+    container.appendChild(card);
+  });
+  container.style.display = 'grid';
+}
+
+function selectService(svc) {
+  selectedService = svc;
+  document.getElementById('services-grid').style.display = 'none';
+  document.getElementById('inline-calc').style.display = 'block';
+  document.getElementById('order-fields').style.display = 'block';
+
+  const ratePerK = (svc.rate * 1000).toFixed(2);
+  document.getElementById('of-info').innerHTML = `<strong>${svc.name}</strong><br/>Min: ${svc.min.toLocaleString()} — Max: ${svc.max.toLocaleString()} | Refill: ${svc.refill}<br/><small>Rate: ₹${ratePerK} per 1,000</small>`;
+  document.getElementById('of-minmax').textContent = `Min: ${svc.min.toLocaleString()} — Max: ${svc.max.toLocaleString()}`;
+  document.getElementById('of-qty').value = '';
+  document.getElementById('of-charge').innerHTML = `Rs. 0.00 <span>Enter quantity above</span>`;
+
+  // Setup inline calculator
+  const nameEl = document.getElementById('inline-calc-svcname');
+  if (nameEl) nameEl.textContent = svc.name;
+  document.getElementById('inline-calc-result').style.display = 'none';
+  document.getElementById('inline-calc-qty').value = '';
+  const isViews = ['ig-views','ig-story','fb-reels','yt-views'].includes(svc.id);
+  const chips = isViews ? [10000, 50000, 100000, 500000, 1000000] : [500, 1000, 5000, 10000, 50000];
+  const chipsEl = document.getElementById('inline-qty-chips');
+  if (chipsEl) {
+    chipsEl.innerHTML = chips.filter(c => c >= svc.min && c <= svc.max).map(c => `<button onclick="inlineCalcSetQty(${c})" style="background:var(--surface);border:1.5px solid var(--border2);color:var(--accent);border-radius:100px;padding:.28rem .8rem;font-size:.67rem;font-weight:700;cursor:pointer;">${c.toLocaleString('en-IN')}</button>`).join('');
+  }
+  // Expand inline calc by default
+  if (!inlineCalcOpen) toggleInlineCalc();
+}
+
+function toggleInlineCalc() {
+  inlineCalcOpen = !inlineCalcOpen;
+  const body = document.getElementById('inline-calc-body');
+  const toggle = document.getElementById('inline-calc-toggle');
+  if (body && toggle) {
+    body.style.display = inlineCalcOpen ? 'block' : 'none';
+    toggle.textContent = inlineCalcOpen ? 'Collapse ↑' : 'Expand ↓';
+  }
+}
+
+function inlineCalcSetQty(qty) {
+  document.getElementById('inline-calc-qty').value = qty;
+  inlineCalcCompute();
+}
+
+function inlineCalcCompute() {
+  if (!selectedService) return;
+  const qty = parseInt(document.getElementById('inline-calc-qty').value) || 0;
+  const resEl = document.getElementById('inline-calc-result');
+  if (!qty) { resEl.style.display = 'none'; return; }
+  const charge = (selectedService.rate * qty);
+  resEl.style.display = 'block';
+  document.getElementById('inline-calc-price').innerHTML = 'Rs. ' + charge.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+  document.getElementById('inline-calc-break').innerHTML = qty.toLocaleString('en-IN') + ' ' + selectedService.name + ' × Rs.' + (selectedService.rate*1000).toFixed(3) + '/1,000';
+}
+
+function useInlineCalcQty() {
+  const qty = document.getElementById('inline-calc-qty').value;
+  if (!qty) return;
+  document.getElementById('of-qty').value = qty;
+  calcCharge();
+  document.getElementById('of-qty').scrollIntoView({behavior:'smooth', block:'center'});
+  document.getElementById('of-qty').focus();
+}
+
+function calcCharge() {
+  if (!selectedService) return;
+  const qty = parseInt(document.getElementById('of-qty').value) || 0;
+  if (!qty) { document.getElementById('of-charge').innerHTML = `Rs. 0.00 <span>Enter quantity above</span>`; return; }
+  const charge = (selectedService.rate * qty);
+  document.getElementById('of-charge').innerHTML = `<strong>Rs. ${charge.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong>`;
+}
+
+async function placeOrder() {
+  if (!selectedService) { showToast('Please select a service.'); return; }
+  const link = document.getElementById('of-link').value.trim();
+  const qty = parseInt(document.getElementById('of-qty').value);
+  if (!link) { showToast('Please enter your link.'); return; }
+  const platform = currentPlatform;
+  if (platform === 'youtube' && !link.includes('youtube.com') && !link.includes('youtu.be')) { showToast('Please enter a valid YouTube link.'); return; }
+  if (platform === 'instagram' && !link.includes('instagram.com')) { showToast('Please enter a valid Instagram link.'); return; }
+  if (platform === 'facebook' && !link.includes('facebook.com')) { showToast('Please enter a valid Facebook link.'); return; }
+  if (!qty || qty < selectedService.min || qty > selectedService.max) { showToast(`Quantity must be between ${selectedService.min} and ${selectedService.max}.`); return; }
+  const charge = parseFloat((selectedService.rate * qty).toFixed(2));
+  const balance = getDisplayBalance();
+  if (balance < charge) { showToast('Insufficient balance. Please add funds.'); return; }
+
+  const btn = document.getElementById('order-submit-btn');
+  btn.disabled = true;
+  btn.textContent = '...';
+  if (!isAdmin()) userData.balance -= charge;
+  const order = {
+    id: Date.now().toString().slice(-6),
+    service: selectedService.name,
+    link, qty, charge,
+    status: 'pending',
+    smmOrderId: null,
+    date: new Date().toLocaleString()
+  };
+  userData.orders.push(order);
+  saveData(); refreshUI(); renderDashboard();
+
+  try {
+    const res = await fetch('/api/order', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action:'add', service:selectedService.smmId, link, quantity:qty})
+    });
+    const data = await res.json();
+    if (data.order) { order.smmOrderId = data.order; order.status = 'processing'; saveData(); }
+    showToast(`Order #${order.id} placed successfully!`);
+  } catch(e) { showToast(`Order #${order.id} placed!`); }
+
+  btn.disabled = false;
+  btn.textContent = T[currentLang]?.['order.submit'] || 'Submit Order';
+  document.getElementById('of-link').value = '';
+  document.getElementById('of-qty').value = '';
+  document.getElementById('of-charge').innerHTML = `Rs. 0.00 <span>Enter quantity above</span>`;
+  selectedService = null;
+  document.getElementById('services-grid').style.display = 'none';
+  document.getElementById('inline-calc').style.display = 'none';
+  document.getElementById('order-fields').style.display = 'none';
+  ['ig','yt','fb'].forEach(p => document.getElementById('plt-'+p)?.classList.remove('selected'));
+  gotoPage('orders');
+}
+
+// ========== ORDER HISTORY ==========
+function renderOrders(filter) {
+  const orders = [...(userData.orders || [])].reverse();
+  const filtered = filter === 'all' ? orders : orders.filter(o => o.status === filter);
+  const list = document.getElementById('orders-list');
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><p>${T[currentLang]?.['orders.empty']||'No orders found.'}</p></div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(o => `<div class="order-card"><div class="order-id">#${o.id}</div><div><div class="order-svc">${o.service}</div><div class="order-meta">${o.qty?.toLocaleString()} units | ${o.date}</div></div><div class="order-right"><div class="order-amount">Rs. ${o.charge}</div><span class="status-badge s-${o.status}">${o.status}</span></div></div>`).join('');
+}
+function filterOrders(filter, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderOrders(filter);
+}
+
+// ========== FUNDS ==========
+function handleScreenshot(input) { if (!input.files[0]) return; showToast('Screenshot ready. Now tap WhatsApp button to send.'); }
+function submitFundRequest() {
+  const amount = parseFloat(document.getElementById('fund-amount').value);
+  const txn = document.getElementById('fund-txn').value.trim();
+  if (!amount || isNaN(amount) || amount < 5) { showToast('Minimum amount is Rs. 5!'); return; }
+  if (!txn || txn.length < 6) { showToast('Please enter a valid Transaction ID (min 6 chars)!'); return; }
+  if (!/^[a-zA-Z0-9]+$/.test(txn)) { showToast('Transaction ID must contain only letters and numbers!'); return; }
+  if ((userData.fundRequests || []).find(r => r.txn === txn)) { showToast('This Transaction ID has already been submitted!'); return; }
+  if (!userData.fundRequests) userData.fundRequests = [];
+  const req = { id: Date.now().toString().slice(-6), amount, txn, status: 'pending', date: new Date().toLocaleString() };
+  userData.fundRequests.push(req);
+  saveData();
+  renderFundRequests();
+  document.getElementById('fund-amount').value = '';
+  document.getElementById('fund-txn').value = '';
+  const box = document.getElementById('pay-confirm-box');
+  box.classList.add('show');
+  box.scrollIntoView({behavior:'smooth', block:'start'});
+  showToast(`Request for Rs. ${amount} submitted!`);
+}
+function renderFundRequests() {
+  const list = document.getElementById('fund-requests-list');
+  if (!list) return;
+  const reqs = [...(userData.fundRequests || [])].reverse();
+  if (!reqs.length) {
+    list.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg><p>${T[currentLang]?.['funds.noreqs']||'No fund requests yet.'}</p></div>`;
+    return;
+  }
+  list.innerHTML = reqs.map(r => `<div class="order-card"><div class="order-id">#${r.id}</div><div><div class="order-svc">Fund Request — Rs. ${r.amount}</div><div class="order-meta">TXN: ${r.txn} | ${r.date}</div></div><div class="order-right"><span class="status-badge s-${r.status}">${r.status}</span></div></div>`).join('');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+// ========== CALCULATOR PAGE ==========
+function calcPlatformChange() {
+  const platform = document.getElementById('calc-platform').value;
+  const svcSel = document.getElementById('calc-service');
+  svcSel.innerHTML = `<option value="">${T[currentLang]?.['calc.sel2']||'Select'}</option>`;
+  document.getElementById('calc-result').style.display = 'none';
+  document.getElementById('calc-qty').value = '';
+  if (!platform || !CALC_RATES[platform]) return;
+  CALC_RATES[platform].forEach(s => { svcSel.innerHTML += `<option value="${s.id}">${s.name} — Rs.${s.rate}/1,000</option>`; });
+}
+function calcServiceChange() { document.getElementById('calc-result').style.display = 'none'; document.getElementById('calc-qty').value = ''; }
+function calcResult() {
+  const platform = document.getElementById('calc-platform').value;
+  const svcId = document.getElementById('calc-service').value;
+  const qty = parseInt(document.getElementById('calc-qty').value) || 0;
+  if (!platform || !svcId || !qty) { document.getElementById('calc-result').style.display='none'; return; }
+  const svc = CALC_RATES[platform]?.find(s => s.id === svcId);
+  if (!svc) return;
+  const price = ((svc.rate / 1000) * qty);
+  document.getElementById('calc-result').style.display = 'block';
+  document.getElementById('calc-result-title').textContent = svc.name;
+  document.getElementById('calc-price').textContent = `Rs. ${price.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+  document.getElementById('calc-breakdown').textContent = `${qty.toLocaleString('en-IN')} units × Rs. ${svc.rate} per 1,000`;
+}
+
+// ========== SCROLL, REVEAL, FAQ, TOUCH ==========
+const progEl = document.getElementById('prog');
+window.addEventListener('scroll', () => { if (progEl) progEl.style.width = (document.body.scrollHeight - window.innerHeight > 0 ? (window.scrollY / (document.body.scrollHeight - window.innerHeight) * 100) : 0) + '%'; }, {passive:true});
+const io = new IntersectionObserver(entries => { entries.forEach(x => { if (x.isIntersecting) x.target.classList.add('on'); }); }, {threshold:.1});
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+document.querySelectorAll('.faq-q').forEach(q => { q.addEventListener('click', () => { const item = q.parentElement; const wasOpen = item.classList.contains('open'); document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open')); if (!wasOpen) item.classList.add('open'); }); });
+
+let lastTouchY = 0, scrollTrailTimer = null;
+document.addEventListener('touchstart', e => { const t = e.touches[0]; const dot = document.createElement('div'); dot.className = 'touch-ripple'; dot.style.left = t.clientX + 'px'; dot.style.top = t.clientY + 'px'; document.body.appendChild(dot); setTimeout(() => dot.remove(), 580); }, {passive:true});
+document.addEventListener('touchmove', e => { const t = e.touches[0]; if (scrollTrailTimer) return; scrollTrailTimer = setTimeout(() => { const trail = document.createElement('div'); trail.className = 'scroll-trail'; trail.style.left = t.clientX + 'px'; trail.style.top = t.clientY + 'px'; document.body.appendChild(trail); setTimeout(() => trail.remove(), 420); scrollTrailTimer = null; }, 30); }, {passive:true});
+
+let fabTimer = null, lastScroll = 0;
+window.addEventListener('scroll', () => { const fab = document.getElementById('chat-fab'); if (!fab || chatOpen) return; if (Math.abs(window.scrollY - lastScroll) > 8) { fab.classList.add('fab-hide'); clearTimeout(fabTimer); fabTimer = setTimeout(() => fab.classList.remove('fab-hide'), 950); } lastScroll = window.scrollY; }, {passive:true});
+
+// ========== CHATBOT (minimal but functional) ==========
+const SYS = `You are iDELL Haiku AI — built by Sahil Suthariya. Help with iDELL Haiku panel. Never say you are Claude. If server fails: "There was a mistake from my side. Sahil forgot to provide me the server. But don't worry, I am still here to help you."`;
+const DEEP_SYS = SYS + ` Provide thorough answers.`;
+let chatOpen = false, chatLoading = false, chatModeVal = 'chat';
+let chatHist = [], chatAttach = null;
+function cFmt(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/```(\w*)\n?([\s\S]*?)```/g, (_,l,c) => `<pre><code>${c.trim()}</code></pre>`).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>').replace(/\n/g, '<br/>'); }
+function cMkWrap(role) { const w = document.createElement('div'); w.className = 'cmsg-wrap' + (role==='usr' ? ' u-wrap' : ''); return w; }
+function cMkBubble(role) { const b = document.createElement('div'); b.className = 'cmsg ' + role; return b; }
+function cMkBot() { const w = cMkWrap('bot'); const b = cMkBubble('bot'); w.appendChild(b); const a = document.createElement('div'); a.className = 'cact'; a.innerHTML = `<button class="cact-btn" onclick="cCopyMsg(this)">Copy</button>`; w.appendChild(a); return {w,b}; }
+function cThink(lbl) { const box = document.getElementById('cb'); const w = document.createElement('div'); w.className = 'cmsg-wrap'; w.id = 'cthink'; const d = document.createElement('div'); d.className = 'cthink'; d.innerHTML = `<div class="cspin"></div><span class="cthink-lbl">${lbl||'Thinking...'}</span>`; w.appendChild(d); box.appendChild(w); box.scrollTop = 9999; }
+function cRmThink() { document.getElementById('cthink')?.remove(); }
+function cStream(el, text, done) { let i = 0; const chars = Array.from(text); const box = document.getElementById('cb'); function nx() { if (i < chars.length) { el.innerHTML = cFmt(chars.slice(0,i+1).join('')) + '<span class="ccursor"></span>'; i++; box.scrollTop = 9999; setTimeout(nx, chars.length > 600 ? 5 : chars.length > 200 ? 9 : 13); } else { el.innerHTML = cFmt(text); box.scrollTop = 9999; if (done) done(); } } nx(); }
+async function cGenImg(prompt) { /* simplified - returns image URL */ showToast('Image generation not fully integrated.'); }
+function cMode(m) { chatModeVal = m; document.querySelectorAll('.chat-mode-btn').forEach(b => b.classList.remove('on')); document.getElementById('cm-'+m)?.classList.add('on'); document.getElementById('ci').placeholder = {chat:'Message...', deep:'Deep question...', image:'Describe image...'}[m]; }
+function chatToggle() { chatOpen = !chatOpen; document.getElementById('chat-screen').classList.toggle('open', chatOpen); document.body.style.overflow = chatOpen ? 'hidden' : ''; document.getElementById('chat-fab').classList.toggle('fab-hide', chatOpen); document.querySelector('.fab-dot').style.display = 'none'; if (chatOpen) { setTimeout(() => document.getElementById('ci').focus(), 280); document.getElementById('cb').scrollTop = 9999; } }
+function cQuick(t) { document.getElementById('cq').style.display='none'; document.getElementById('ci').value=t; cSend(); }
+const ci = document.getElementById('ci'); ci.addEventListener('input', function() { this.style.height='auto'; this.style.height=Math.min(this.scrollHeight,100)+'px'; }); ci.addEventListener('keydown', function(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();cSend();} });
+function cFile(input) { const f = input.files[0]; if (!f) return; const r = new FileReader(); r.onload = e => { chatAttach = {name:f.name, content:e.target.result}; const bar = document.getElementById('cab'); bar.style.display = 'flex'; bar.innerHTML = `<div style="display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:100px;padding:2px 9px;font-size:.65rem;"><span>${f.name}</span><button onclick="cClearAttach()" style="background:none;border:none;cursor:pointer;">x</button></div>`; }; r.readAsText(f); input.value = ''; }
+function cClearAttach() { chatAttach = null; const b = document.getElementById('cab'); b.style.display='none'; b.innerHTML=''; }
+function cLinkModal() { document.getElementById('link-modal').classList.add('show'); setTimeout(()=>document.getElementById('link-inp').focus(),200); }
+function closeLink() { document.getElementById('link-modal').classList.remove('show'); document.getElementById('link-inp').value=''; }
+function submitLink() { const u=document.getElementById('link-inp').value.trim(); if(!u)return; closeLink(); document.getElementById('ci').value=`Tell me about this: ${u}`; cSend(); }
+document.getElementById('link-modal').addEventListener('click', function(e){if(e.target===this)closeLink();});
+document.getElementById('link-inp').addEventListener('keydown', e=>{if(e.key==='Enter')submitLink();});
+async function cSend() { if (chatLoading) return; let text = document.getElementById('ci').value.trim(); if (!text && !chatAttach) return; document.getElementById('ci').value = ''; document.getElementById('ci').style.height='auto'; document.getElementById('cq').style.display = 'none'; let display = text, prompt = text; if (chatAttach) { display = text ? `${text}\n[File: ${chatAttach.name}]` : `[File: ${chatAttach.name}]`; prompt = `${text ? text+'\n\n' : ''}File "${chatAttach.name}":\n\`\`\`\n${chatAttach.content.slice(0,4000)}\n\`\`\``; cClearAttach(); } const box = document.getElementById('cb'); const uw = cMkWrap('usr'); const ub = cMkBubble('usr'); ub.innerHTML = cFmt(display); uw.appendChild(ub); box.appendChild(uw); box.scrollTop = 9999; chatHist.push({role:'user', content:prompt}); chatLoading = true; document.getElementById('csend').disabled = true; if (chatModeVal === 'image') { await cGenImg(text||display); chatLoading = false; document.getElementById('csend').disabled = false; return; } cThink(chatModeVal === 'deep' ? 'Deep analyzing...' : 'Thinking...'); let reply = null; for (let attempt = 0; attempt < 3; attempt++) { try { const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 30000); const res = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, signal: controller.signal, body: JSON.stringify({ system: chatModeVal === 'deep' ? DEEP_SYS : SYS, max_tokens: chatModeVal === 'deep' ? 2000 : 1000, messages: chatHist.slice(-20) }) }); clearTimeout(timeout); if (!res.ok) throw new Error('Server error ' + res.status); const data = await res.json(); reply = data?.content?.[0]?.text || null; if (reply) break; } catch(e) { if (attempt === 2) reply = `There was a mistake from my side. Sahil forgot to provide me the server. But don't worry, I am still here to help you.\n\nFor urgent support, contact: wa.me/919313195257`; await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); } } cRmThink(); const {w,b} = cMkBot(); box.appendChild(w); cStream(b, reply || 'Something went wrong. Please try again.', () => { chatHist.push({role:'assistant', content:reply}); }); chatLoading = false; document.getElementById('csend').disabled = false; document.getElementById('ci').focus(); }
+function cCopyMsg(btn) { const t = btn.closest('.cmsg-wrap').querySelector('.cmsg').innerText; navigator.clipboard.writeText(t).then(() => { btn.textContent = 'Copied'; setTimeout(()=>btn.textContent='Copy',1800); }); }
+function cShare() { const lines = chatHist.map(m => (m.role==='user'?'You: ':'iDELL Haiku AI: ') + m.content); document.getElementById('share-txt').textContent = lines.length ? 'iDELL Haiku Chat\n\n' + lines.join('\n\n') : 'No conversation yet.'; document.getElementById('share-modal').classList.add('show'); }
+function closeShare() { document.getElementById('share-modal').classList.remove('show'); }
+function doCopy() { navigator.clipboard.writeText(document.getElementById('share-txt').textContent).then(() => { const b = document.querySelector('#share-modal .modal-btn.prim'); b.textContent = 'Copied'; setTimeout(() => { b.textContent='Copy'; closeShare(); }, 1500); }); }
+document.getElementById('share-modal').addEventListener('click', function(e){if(e.target===this)closeShare();});
+document.addEventListener('keydown', e => { if(e.key==='Escape'&&chatOpen) chatToggle(); });
+</script>
+</body>
+  </html>
