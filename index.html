@@ -809,6 +809,200 @@ function openInlineCalc(svc) {
     </div>
   </div>
 </div>
+                                                                                                            // ========== NEW ORDER WITH SERVICE GRID ==========
+let selectedService = null;
+let currentPlatform = '';
+
+function selectPltGrid(platform) {
+  currentPlatform = platform;
+  // Highlight platform card
+  ['ig','yt','fb'].forEach(p => {
+    let el = document.getElementById('plt-'+p);
+    if (el) el.classList.remove('selected');
+  });
+  const map = {instagram:'ig', youtube:'yt', facebook:'fb'};
+  document.getElementById('plt-'+map[platform])?.classList.add('selected');
+
+  // Render services grid
+  renderServicesGrid(platform);
+}
+
+function renderServicesGrid(platform) {
+  const container = document.getElementById('services-grid');
+  const services = SERVICES[platform];
+  if (!services) return;
+
+  container.innerHTML = '';
+  services.forEach(svc => {
+    const ratePerK = (svc.rate * 1000).toFixed(svc.rate < 1 ? 3 : 2);
+    const card = document.createElement('div');
+    card.className = 'service-card';
+    card.style.cssText = 'background:var(--surface2); border:2px solid var(--border); border-radius:12px; padding:.7rem .5rem; text-align:center; cursor:pointer; transition:all .2s;';
+    card.onclick = () => selectService(svc);
+    card.innerHTML = `
+      <div style="font-size:.72rem; font-weight:700;">${svc.name}</div>
+      <div style="font-size:.6rem; color:var(--accent); margin-top:.2rem;">₹${ratePerK}/1,000</div>
+    `;
+    container.appendChild(card);
+  });
+  container.style.display = 'grid';
+  container.style.gridTemplateColumns = 'repeat(auto-fill, minmax(140px, 1fr))';
+  container.style.gap = '.6rem';
+}
+
+function selectService(svc) {
+  selectedService = svc;
+  // Hide services grid, show inline calculator and order fields
+  document.getElementById('services-grid').style.display = 'none';
+  document.getElementById('inline-calc').style.display = 'block';
+  document.getElementById('order-fields').style.display = 'block';
+
+  // Update service info
+  const ratePerK = (svc.rate * 1000).toFixed(2);
+  document.getElementById('of-info').innerHTML = `
+    <strong>${svc.name}</strong><br/>
+    Min: ${svc.min.toLocaleString()} — Max: ${svc.max.toLocaleString()} | Refill: ${svc.refill}<br/>
+    <small>Rate: ₹${ratePerK} per 1,000</small>
+  `;
+  document.getElementById('of-minmax').textContent = `Min: ${svc.min.toLocaleString()} — Max: ${svc.max.toLocaleString()}`;
+  document.getElementById('of-qty').value = '';
+  document.getElementById('of-charge').innerHTML = `Rs. 0.00 <span>Enter quantity above</span>`;
+
+  // Setup inline calculator
+  openInlineCalc(svc);
+}
+
+function openInlineCalc(svc) {
+  const wrap = document.getElementById('inline-calc');
+  const nameEl = document.getElementById('inline-calc-svcname');
+  if (nameEl) nameEl.textContent = svc.name;
+  wrap.style.display = 'block';
+  inlineCalcOpen = true;
+  const body = document.getElementById('inline-calc-body');
+  const toggle = document.getElementById('inline-calc-toggle');
+  if (body && toggle) {
+    body.style.display = 'block';
+    toggle.textContent = 'Collapse ↑';
+  }
+  document.getElementById('inline-calc-result').style.display = 'none';
+  document.getElementById('inline-calc-qty').value = '';
+
+  const isViews = ['ig-views','ig-story','fb-reels','yt-views'].includes(svc.id);
+  const chips = isViews
+    ? [10000, 50000, 100000, 500000, 1000000]
+    : [500, 1000, 5000, 10000, 50000];
+  const chipsEl = document.getElementById('inline-qty-chips');
+  if (chipsEl) {
+    chipsEl.innerHTML = chips
+      .filter(c => c >= svc.min && c <= svc.max)
+      .map(c => `<button onclick="inlineCalcSetQty(${c})" style="background:var(--surface);border:1.5px solid var(--border2);color:var(--accent);border-radius:100px;padding:.28rem .8rem;font-size:.67rem;font-weight:700;cursor:pointer;">${c.toLocaleString('en-IN')}</button>`)
+      .join('');
+  }
+}
+
+function inlineCalcSetQty(qty) {
+  document.getElementById('inline-calc-qty').value = qty;
+  inlineCalcCompute();
+}
+
+function inlineCalcCompute() {
+  if (!selectedService) return;
+  const qty = parseInt(document.getElementById('inline-calc-qty').value) || 0;
+  const resEl = document.getElementById('inline-calc-result');
+  if (!qty) { resEl.style.display = 'none'; return; }
+  const charge = (selectedService.rate * qty);
+  resEl.style.display = 'block';
+  document.getElementById('inline-calc-price').innerHTML = 'Rs. ' + charge.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+  document.getElementById('inline-calc-break').innerHTML = qty.toLocaleString('en-IN') + ' ' + selectedService.name + ' × Rs.' + (selectedService.rate*1000).toFixed(3) + '/1,000';
+}
+
+function useInlineCalcQty() {
+  const qty = document.getElementById('inline-calc-qty').value;
+  if (!qty) return;
+  document.getElementById('of-qty').value = qty;
+  calcCharge();
+  document.getElementById('of-qty').scrollIntoView({behavior:'smooth', block:'center'});
+  document.getElementById('of-qty').focus();
+}
+
+function calcCharge() {
+  if (!selectedService) return;
+  const qty = parseInt(document.getElementById('of-qty').value) || 0;
+  if (!qty) { document.getElementById('of-charge').innerHTML = `Rs. 0.00 <span>Enter quantity above</span>`; return; }
+  const charge = (selectedService.rate * qty);
+  document.getElementById('of-charge').innerHTML = `<strong>Rs. ${charge.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong>`;
+}
+
+async function placeOrder() {
+  // same as before, just use selectedService
+  if (!selectedService) { showToast('Please select a service.'); return; }
+  const link = document.getElementById('of-link').value.trim();
+  const qty = parseInt(document.getElementById('of-qty').value);
+  if (!link) { showToast('Please enter your link.'); return; }
+  if (!qty || qty < selectedService.min || qty > selectedService.max) {
+    showToast(`Quantity must be between ${selectedService.min} and ${selectedService.max}.`);
+    return;
+  }
+  const charge = parseFloat((selectedService.rate * qty).toFixed(2));
+  const balance = isAdmin() ? ADMIN_PRICE_OVERRIDE : userData.balance;
+  if (balance < charge) { showToast('Insufficient balance. Please add funds.'); return; }
+
+  const btn = document.getElementById('order-submit-btn');
+  btn.disabled = true;
+  btn.textContent = '...';
+
+  if (!isAdmin()) userData.balance -= charge;
+  const order = {
+    id: Date.now().toString().slice(-6),
+    service: selectedService.name,
+    link, qty, charge,
+    status: 'pending',
+    smmOrderId: null,
+    date: new Date().toLocaleString()
+  };
+  userData.orders.push(order);
+  saveData(); refreshUI(); renderDashboard();
+
+  try {
+    const res = await fetch('/api/order', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action:'add', service:selectedService.smmId, link, quantity:qty})
+    });
+    const data = await res.json();
+    if (data.order) { order.smmOrderId = data.order; order.status = 'processing'; saveData(); }
+    showToast(`Order #${order.id} placed successfully!`);
+  } catch(e) {
+    showToast(`Order #${order.id} placed!`);
+  }
+
+  btn.disabled = false;
+  btn.textContent = T[currentLang]?.['order.submit'] || 'Submit Order';
+  document.getElementById('of-link').value = '';
+  document.getElementById('of-qty').value = '';
+  document.getElementById('of-charge').innerHTML = `Rs. 0.00 <span>Enter quantity above</span>`;
+  selectedService = null;
+  // Reset UI
+  document.getElementById('services-grid').style.display = 'none';
+  document.getElementById('inline-calc').style.display = 'none';
+  document.getElementById('order-fields').style.display = 'none';
+  // Clear platform highlight
+  ['ig','yt','fb'].forEach(p => document.getElementById('plt-'+p)?.classList.remove('selected'));
+  gotoPage('orders');
+                                         }.service-card {
+  background: var(--surface2);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 0.7rem 0.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.service-card:hover {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+  transform: translateY(-2px);
+                                                                                                            }
 /* ============================================================
    CALCULATOR PAGE
    ============================================================ */
