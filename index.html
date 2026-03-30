@@ -739,6 +739,76 @@ function openInlineCalc(svc) {
       .join('');
   }
   }
+  <!-- NEW ORDER (with service grid) -->
+<div class="app-page" id="pg-new-order">
+  <div class="order-form">
+    <h2 data-t="order.title">Place New Order</h2>
+
+    <!-- Platform selection -->
+    <div class="form-group">
+      <label class="form-label" data-t="order.platform">Select Platform</label>
+      <div class="plt-grid">
+        <div onclick="selectPltGrid('instagram')" id="plt-ig" class="plt-card">
+          <svg class="plt-logo" viewBox="0 0 24 24"><defs><linearGradient id="ig-g" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#f09433"/><stop offset="50%" stop-color="#dc2743"/><stop offset="100%" stop-color="#bc1888"/></linearGradient></defs><rect x="2" y="2" width="20" height="20" rx="6" fill="url(#ig-g)"/><circle cx="12" cy="12" r="5" stroke="white" stroke-width="1.8" fill="none"/><circle cx="17.5" cy="6.5" r="1.2" fill="white"/></svg>
+          <div class="plt-name">Instagram</div>
+        </div>
+        <div onclick="selectPltGrid('youtube')" id="plt-yt" class="plt-card">
+          <svg class="plt-logo" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="5" fill="#FF0000"/><polygon points="9.5,8 9.5,16 17,12" fill="white"/></svg>
+          <div class="plt-name">YouTube</div>
+        </div>
+        <div onclick="selectPltGrid('facebook')" id="plt-fb" class="plt-card">
+          <svg class="plt-logo" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#1877F2"/><path d="M15.5 8H13.5C13 8 13 8.5 13 9V11H15.5L15 13.5H13V20H10.5V13.5H8.5V11H10.5V9C10.5 7 11.7 6 13.5 6H15.5V8Z" fill="white"/></svg>
+          <div class="plt-name">Facebook</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Services Grid (will be filled dynamically) -->
+    <div id="services-grid" class="services-grid" style="display:none; margin-top:1rem;"></div>
+
+    <!-- Inline Calculator (hidden until service selected) -->
+    <div id="inline-calc" style="display:none; margin-top:1.2rem;">
+      <div style="background:var(--surface2); border:1.5px solid var(--border2); border-radius:12px; overflow:hidden;">
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:.65rem 1rem; border-bottom:1px solid var(--border); cursor:pointer;" onclick="toggleInlineCalc()">
+          <div style="display:flex; align-items:center; gap:.5rem;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/></svg>
+            <span id="inline-calc-svcname" style="font-size:.75rem;font-weight:700;color:var(--accent);">Price Calculator</span>
+          </div>
+          <span id="inline-calc-toggle" style="font-size:.7rem;color:var(--muted);font-weight:600;">Expand ↓</span>
+        </div>
+        <div id="inline-calc-body" style="display:none; padding:.9rem 1rem;">
+          <div style="display:flex; gap:.4rem; flex-wrap:wrap; margin-bottom:.7rem;" id="inline-qty-chips"></div>
+          <input type="number" id="inline-calc-qty" class="form-input" placeholder="Or type quantity..." oninput="inlineCalcCompute()" style="font-size:.82rem; margin-bottom:.7rem;" />
+          <div id="inline-calc-result" style="display:none; background:var(--accent-tint); border:1.5px solid var(--border2); border-radius:9px; padding:.75rem 1rem; text-align:center;">
+            <div style="font-size:.6rem; color:var(--accent); font-weight:700; letter-spacing:.1em; text-transform:uppercase; margin-bottom:.15rem;">Estimated Price</div>
+            <div id="inline-calc-price" style="font-family:'Syne',sans-serif; font-size:1.6rem; font-weight:800; color:var(--accent);">Rs. 0.00</div>
+            <div id="inline-calc-break" style="font-size:.67rem; color:var(--muted); margin-top:.1rem;"></div>
+            <button onclick="useInlineCalcQty()" style="margin-top:.55rem; background:var(--accent); color:#fff; border:none; border-radius:100px; padding:.38rem 1.1rem; font-size:.72rem; font-weight:700; cursor:pointer;">Use this quantity</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Order form fields (hidden until service selected) -->
+    <div id="order-fields" style="display:none; margin-top:1.2rem;">
+      <div class="svc-info" id="of-info"></div>
+      <div class="form-group">
+        <label class="form-label" data-t="order.link">Link</label>
+        <input type="url" class="form-input" id="of-link" placeholder="Paste your Instagram / YouTube link" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-t="order.qty">Quantity</label>
+        <input type="number" class="form-input" id="of-qty" placeholder="How many?" oninput="calcCharge()" />
+        <div class="min-max" id="of-minmax"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-t="order.charge">Total Charge</label>
+        <div class="charge-box" id="of-charge">Rs. 0.00 <span data-t="order.chargehint">Enter quantity above</span></div>
+      </div>
+      <button class="submit-btn" id="order-submit-btn" onclick="placeOrder()" data-t="order.submit">Submit Order</button>
+    </div>
+  </div>
+</div>
 /* ============================================================
    CALCULATOR PAGE
    ============================================================ */
