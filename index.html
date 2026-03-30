@@ -647,7 +647,98 @@ footer { background:var(--dark); padding:2.5rem 4rem 1.8rem; }
   font-size:.79rem; color:var(--text2); line-height:1.5; margin-bottom:.9rem;
   display:none;
 }
+// ========== FIXED PLATFORM & SERVICE FUNCTIONS ==========
+window.selectPlt = function(platform) {
+  // Remove selected class from all platform cards
+  ['ig','yt','fb'].forEach(p => {
+    const el = document.getElementById('plt-'+p);
+    if (el) el.classList.remove('selected');
+  });
+  const map = {instagram:'ig', youtube:'yt', facebook:'fb'};
+  const selectedCard = document.getElementById('plt-'+map[platform]);
+  if (selectedCard) selectedCard.classList.add('selected');
+  
+  // Set hidden select value
+  document.getElementById('of-category').value = platform;
+  // Immediately populate services
+  onCategoryChange();
+};
 
+window.onCategoryChange = function() {
+  const cat = document.getElementById('of-category').value;
+  const svcSel = document.getElementById('of-service');
+  // Clear and add default option
+  svcSel.innerHTML = `<option value="">${T[currentLang]?.['order.svcprompt'] || 'Select platform first'}</option>`;
+  selectedService = null;
+  document.getElementById('of-info').style.display = 'none';
+  document.getElementById('inline-calc').style.display = 'none';
+  document.getElementById('of-charge').innerHTML = `Rs. 0.00 <span>${T[currentLang]?.['order.chargehint'] || 'Enter quantity'}</span>`;
+  document.getElementById('of-minmax').textContent = '';
+  
+  if (!cat || !SERVICES[cat]) return;
+  
+  // Populate services from SERVICES object
+  SERVICES[cat].forEach(s => {
+    svcSel.innerHTML += `<option value="${s.id}">${s.name}</option>`;
+  });
+  
+  // If there was previously a selected service, retain (optional)
+};
+
+window.onServiceChange = function() {
+  const cat = document.getElementById('of-category').value;
+  const svcId = document.getElementById('of-service').value;
+  if (!cat || !svcId) {
+    selectedService = null;
+    document.getElementById('of-info').style.display = 'none';
+    document.getElementById('inline-calc').style.display = 'none';
+    return;
+  }
+  selectedService = SERVICES[cat]?.find(s => s.id === svcId);
+  if (!selectedService) return;
+  
+  const ratePerK = (selectedService.rate * 1000).toFixed(2);
+  document.getElementById('of-info').style.display = 'block';
+  document.getElementById('of-info').innerHTML =
+    `<strong>${selectedService.name}</strong><br/>Min: ${selectedService.min.toLocaleString()} — Max: ${selectedService.max.toLocaleString()} | Refill: ${selectedService.refill}<br/><small style="color:var(--muted)">Rate: Rs. ${ratePerK} per 1,000</small>`;
+  document.getElementById('of-minmax').textContent = `Min: ${selectedService.min.toLocaleString()} — Max: ${selectedService.max.toLocaleString()}`;
+  document.getElementById('of-qty').value = '';
+  document.getElementById('of-charge').innerHTML = `Rs. 0.00 <span>${T[currentLang]?.['order.chargehint'] || 'Enter quantity'}</span>`;
+  
+  // Show inline calculator with correct service name
+  openInlineCalc(selectedService);
+};
+
+// Inline calculator (same as before, but now correctly triggered)
+function openInlineCalc(svc) {
+  const wrap = document.getElementById('inline-calc');
+  if (!wrap) return;
+  const nameEl = document.getElementById('inline-calc-svcname');
+  if (nameEl) nameEl.textContent = svc.name;
+  wrap.style.display = 'block';
+  inlineCalcOpen = true;
+  const body = document.getElementById('inline-calc-body');
+  const toggle = document.getElementById('inline-calc-toggle');
+  if (body && toggle) {
+    body.style.display = 'block';
+    toggle.textContent = 'Collapse ↑';
+  }
+  document.getElementById('inline-calc-result').style.display = 'none';
+  document.getElementById('inline-calc-qty').value = '';
+  
+  // Quick quantity chips
+  const isViews = ['ig-views','ig-story','fb-reels','yt-views'].includes(svc.id);
+  const chips = isViews
+    ? [10000, 50000, 100000, 500000, 1000000]
+    : [500, 1000, 5000, 10000, 50000];
+  const chipsEl = document.getElementById('inline-qty-chips');
+  if (chipsEl) {
+    chipsEl.innerHTML = chips
+      .filter(c => c >= svc.min && c <= svc.max)
+      .map(c => `<button onclick="inlineCalcSetQty(${c})" style="background:var(--surface);border:1.5px solid var(--border2);color:var(--accent);border-radius:100px;padding:.28rem .8rem;font-size:.67rem;font-weight:700;cursor:pointer;">${c.toLocaleString('en-IN')}</button>`)
+      .join('');
+  }
+  }
 /* ============================================================
    CALCULATOR PAGE
    ============================================================ */
